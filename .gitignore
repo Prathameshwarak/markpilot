@@ -30,3 +30,6 @@ telegram_*.json
 .idea/
 .vscode/
 *.log
+*.env
+credentials.json
+.credentials
