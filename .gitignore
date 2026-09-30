@@ -27,3 +27,4 @@ telegram_*.json
 .idea/
 .vscode/
 *.log
+frontend/node_modules/.cache/default-development/0.pack
