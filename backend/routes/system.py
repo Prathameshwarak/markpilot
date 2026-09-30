@@ -1,26 +1,73 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
+from fastapi.concurrency import run_in_threadpool
+
 from auth import get_current_user
-from brokers.kotak_neo import KotakNeoAdapter
+from brokers.registry import get_kotak_adapter
 from config import settings
 import services
 
 router = APIRouter(prefix="/api", tags=["system", "settings"])
 
-_broker = KotakNeoAdapter()
+
+async def _db_status() -> str:
+    try:
+        from db import db
+        await db.command("ping")
+        return "CONNECTED"
+    except Exception:
+        return "ERROR"
+
+
+def _market_data_status() -> str:
+    ds = services.DATA_SOURCE
+    if ds == "kotak":
+        return "KOTAK"
+    if ds == "mock":
+        return "MOCK"
+    return "ERROR"
 
 
 @router.get("/system/status")
 async def system_status():
+    broker = get_kotak_adapter().health_check()
+    ps = services.provider_status()
     return {
         "status": "ok",
-        "version": "0.1.0",
-        "data_provider": "mock",
-        "market_data_stale": False,
-        "broker": _broker.health_check(),
+        "application": "HEALTHY",
+        "version": "0.2.0",
+        "database": await _db_status(),
+        "market_data": _market_data_status(),
+        "data_source": ps["data_source"],
+        "data_quality": ps["data_quality"],
+        "last_market_data_timestamp": ps["last_market_data_timestamp"],
+        "market_data_stale": ps["data_source"] == "mock",
+        "kotak": broker["status"],
+        "broker": broker,
+        "scheduler": "READY",
         "telegram": {"configured": bool(settings.TELEGRAM_BOT_TOKEN), "enabled": False},
         "regime": services.current_regime()["regime"],
         "universe_size": len(services.EQUITIES),
         "modules": {"fno": "coming_soon", "equity": "active", "monitoring": "active"},
+    }
+
+
+@router.get("/broker/kotak/status")
+async def kotak_status(user: dict = Depends(get_current_user)):
+    # Sanitized health only — never returns credentials or tokens.
+    return get_kotak_adapter().health_check()
+
+
+@router.post("/broker/kotak/test-connection")
+async def kotak_test_connection(user: dict = Depends(get_current_user)):
+    adapter = get_kotak_adapter()
+    result = await run_in_threadpool(adapter.authenticate)
+    # Only the sanitized fields are returned to the client.
+    return {
+        "connected": result.get("connected", False),
+        "status": result.get("status"),
+        "message": result.get("message"),
+        "timestamp": result.get("timestamp", datetime.now(timezone.utc).isoformat()),
     }
 
 

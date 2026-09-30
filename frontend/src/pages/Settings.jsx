@@ -5,15 +5,46 @@ import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { PageHeader, Card } from "../components/Primitives";
 
+const KOTAK_STATUS_LABEL = (s) => ({
+  NOT_CONFIGURED: "NOT CONFIGURED", CONNECTED: "CONNECTED", AUTH_FAILED: "AUTH FAILED",
+  DISCONNECTED: "DISCONNECTED", TIMEOUT: "TIMEOUT", RATE_LIMITED: "RATE LIMITED", ERROR: "ERROR",
+}[s] || "NOT CONFIGURED");
+
+const KOTAK_STATUS_STYLE = (s) => ({
+  CONNECTED: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+  NOT_CONFIGURED: "border-slate-600 bg-slate-800 text-slate-400",
+  AUTH_FAILED: "border-rose-500/40 bg-rose-500/10 text-rose-400",
+  DISCONNECTED: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+}[s] || "border-slate-600 bg-slate-800 text-slate-400");
+
 export default function Settings() {
   const { user } = useAuth();
   const [s, setS] = useState(null);
   const [status, setStatus] = useState(null);
+  const [kotak, setKotak] = useState(null);
+  const [testing, setTesting] = useState(false);
+
+  const loadKotak = () => api.get("/broker/kotak/status").then((r) => setKotak(r.data)).catch(() => {});
 
   useEffect(() => {
     api.get("/settings").then((r) => setS(r.data)).catch(() => {});
     api.get("/system/status").then((r) => setStatus(r.data)).catch(() => {});
+    loadKotak();
   }, []);
+
+  const testConnection = async () => {
+    setTesting(true);
+    try {
+      const { data } = await api.post("/broker/kotak/test-connection");
+      if (data.connected) toast.success(data.message || "Connected");
+      else toast.error(data.message || `Status: ${data.status}`);
+      loadKotak();
+    } catch {
+      toast.error("Test connection failed");
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const save = async () => {
     try { const { data } = await api.put("/settings", s); setS(data); toast.success("Settings saved"); }
@@ -72,14 +103,26 @@ export default function Settings() {
 
         <Card>
           <div className="mb-3 flex items-center gap-2"><Link2 size={16} className="text-cyan-400" /><h2 className="font-display text-lg font-bold">Broker Connection</h2></div>
-          <div className="rounded-lg bg-slate-900/60 p-3">
+          <div className="rounded-lg bg-slate-900/60 p-3" data-testid="kotak-connection-panel">
             <div className="flex items-center justify-between">
-              <span className="font-semibold">Kotak Neo</span>
-              <span className="rounded-md border border-slate-600 bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
-                {status?.broker?.configured ? "Configured" : "Not connected"}
+              <span className="font-semibold">Kotak Neo <span className="ml-1 text-[10px] uppercase tracking-wider text-slate-500">read-only</span></span>
+              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${KOTAK_STATUS_STYLE(kotak?.status)}`} data-testid="kotak-status-badge">
+                {KOTAK_STATUS_LABEL(kotak?.status)}
               </span>
             </div>
-            <p className="mt-2 text-[11px] text-slate-500">Read-only adapter. Order execution is disabled — MarketPilot never places trades. Credentials are stored server-side via environment variables and never exposed here.</p>
+            <div className="mt-3 space-y-1.5 text-[11px] text-slate-500">
+              <div className="flex justify-between"><span>Last successful connection</span><span className="font-num text-slate-400">{kotak?.last_connection ? new Date(kotak.last_connection).toLocaleString() : "—"}</span></div>
+              <div className="flex justify-between"><span>Last error</span><span className="font-num text-slate-400">{kotak?.last_error || "—"}</span></div>
+              <div className="flex justify-between"><span>Last data received</span><span className="font-num text-slate-400">{kotak?.last_data_received ? new Date(kotak.last_data_received).toLocaleString() : "—"}</span></div>
+              <div className="flex justify-between"><span>Order execution</span><span className="font-num text-rose-400">disabled</span></div>
+            </div>
+            <button
+              onClick={testConnection} disabled={testing} data-testid="kotak-test-connection-button"
+              className="mt-3 w-full rounded-lg border border-cyan-500/30 bg-cyan-500/10 py-2 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-60"
+            >
+              {testing ? "Testing…" : "Test Connection"}
+            </button>
+            <p className="mt-2 text-[11px] text-slate-600">Read-only adapter — MarketPilot never places trades. Credentials are stored server-side via environment variables and never exposed here. When not configured the app runs on demo market data.</p>
           </div>
         </Card>
       </div>

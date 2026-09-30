@@ -27,7 +27,24 @@ export default function Equity() {
 
   return (
     <div>
-      <PageHeader title="Equity Research" subtitle={`${equities.length} liquid large-cap Indian equities — scanner (V1 mock data)`} />
+      <PageHeader
+        title="Equity Research"
+        subtitle={`${equities.length} liquid large-cap Indian equities — scanner`}
+        right={
+          equities[0] && (
+            <span
+              data-testid="equity-data-badge"
+              className={`rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                equities[0].data_source === "kotak"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+              }`}
+            >
+              {equities[0].data_source === "kotak" ? (equities[0].is_live ? "Live" : "Stale") : "Demo Data"}
+            </span>
+          )
+        }
+      />
 
       {/* Filters */}
       <Card className="mb-5">

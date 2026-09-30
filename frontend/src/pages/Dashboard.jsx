@@ -25,7 +25,24 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Indian equity research overview — mock market data (V1)" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Indian equity research overview"
+        right={
+          overview && (
+            <span
+              data-testid="dashboard-data-badge"
+              className={`rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                overview.data_source === "kotak"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+              }`}
+            >
+              {overview.data_source === "kotak" ? "Live Market Data" : "Demo Market Data"}
+            </span>
+          )
+        }
+      />
 
       {/* Market status row */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
