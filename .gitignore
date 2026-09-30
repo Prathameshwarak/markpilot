@@ -1,0 +1,29 @@
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# ---- Node / frontend ----
+node_modules/
+build/
+dist/
+.cache/
+
+# ---- Secrets & env (NEVER commit) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kotak_*.json
+telegram_*.json
+
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/
+*.log

@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --mp-bg: #0B0F17;
+  --mp-surface: #111827;
+  --mp-elevated: #1E293B;
+  --mp-border: #1E293B;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--mp-bg);
+  color: #F8FAFC;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display { font-family: 'Outfit', sans-serif; }
+.font-num { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+::selection { background: #3B82F6; color: #fff; }
+
+@keyframes mp-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mp-fade-up { animation: mp-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.mp-grid-bg {
+  background-image: radial-gradient(circle at 1px 1px, rgba(148,163,184,0.06) 1px, transparent 0);
+  background-size: 32px 32px;
+}

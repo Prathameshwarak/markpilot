@@ -1,0 +1,244 @@
+{
+  "project_name": "MarketPilot",
+  "app_type": "Data-dense Financial Equity Research & Trade Monitoring SaaS Dashboard",
+  "target_market": "Indian Stock Markets (NSE / BSE / NIFTY 50)",
+  "emotional_archetype": "THE PERFORMANCE PRO & SWISS FINANCIAL TERMINAL",
+  "design_philosophy": {
+    "core_principles": [
+      "Tactical Financial Precision: Information density, zero fluff, instant scanability for active traders and equity analysts.",
+      "Transparent Scoring: 100-point Opportunity Score decomposed clearly into Technical (35), Fundamental (25), Sentiment (15), Sector (10), and Risk/Reward (15).",
+      "Institutional Visual Hierarchy: High-contrast data tables, crisp 1px borders, status-coded micro-badges, and mono-spaced price metrics.",
+      "Emotion-Free Trading Workflow: Research -> Setup -> Monitored Execution -> Journaling cycle that enforces strict risk management rules."
+    ],
+    "anti_patterns_to_avoid": [
+      "NO generic centered marketing layouts or consumer-grade rounded bubbly buttons.",
+      "NO dark gradients that obscure text or chart legibility.",
+      "NO missing test IDs or unstyled HTML raw select elements.",
+      "NO full opacity blanket overlays on modals or drawers; use subtle backdrop blur (backdrop-blur-md bg-slate-900/80)."
+    ]
+  },
+  "theme": {
+    "default_mode": "dark",
+    "theme_switchable": true,
+    "dark_colors": {
+      "background": "#0B0F17",
+      "surface_card": "#111827",
+      "surface_elevated": "#1E293B",
+      "border_grid": "#1E293B",
+      "border_accent": "#334155",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "text_muted": "#64748B",
+      "accent_bullish": "#10B981",
+      "accent_bearish": "#EF4444",
+      "accent_neutral": "#F59E0B",
+      "accent_monitoring": "#06B6D4",
+      "accent_primary": "#3B82F6",
+      "accent_gold": "#EAB308"
+    },
+    "light_colors": {
+      "background": "#F8FAFC",
+      "surface_card": "#FFFFFF",
+      "surface_elevated": "#F1F5F9",
+      "border_grid": "#E2E8F0",
+      "border_accent": "#CBD5E1",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "text_muted": "#64748B",
+      "accent_bullish": "#059669",
+      "accent_bearish": "#DC2626",
+      "accent_neutral": "#D97706",
+      "accent_monitoring": "#0284C7",
+      "accent_primary": "#2563EB",
+      "accent_gold": "#CA8A04"
+    }
+  },
+  "typography": {
+    "font_family_heading": "Outfit, sans-serif",
+    "font_family_body": "Inter, -apple-system, sans-serif",
+    "font_family_mono": "JetBrains Mono, Roboto Mono, monospace",
+    "hierarchy": {
+      "h1_dashboard": "text-2xl sm:text-3xl font-extrabold tracking-tight",
+      "h2_section": "text-xl sm:text-2xl font-bold tracking-tight",
+      "h3_card": "text-base sm:text-lg font-semibold tracking-tight",
+      "metric_large": "text-2xl sm:text-3xl font-mono font-bold tracking-tight",
+      "metric_medium": "text-lg sm:text-xl font-mono font-bold",
+      "body": "text-sm text-slate-300 dark:text-slate-300 light:text-slate-700 leading-relaxed",
+      "caption_mono": "text-xs font-mono tracking-wider uppercase"
+    }
+  },
+  "navigation_structure": {
+    "sidebar_links": [
+      { "id": "nav-dashboard", "label": "Dashboard", "icon": "LayoutDashboard", "path": "/" },
+      { "id": "nav-equity", "label": "Equity Research", "icon": "TrendingUp", "path": "/equity" },
+      { "id": "nav-ideas", "label": "Trade Ideas", "icon": "Lightbulb", "path": "/ideas" },
+      { "id": "nav-monitoring", "label": "My Monitoring", "icon": "Activity", "path": "/monitoring" },
+      { "id": "nav-journal", "label": "Trade Journal", "icon": "BookOpen", "path": "/journal" },
+      { "id": "nav-overview", "label": "Market Overview", "icon": "Globe", "path": "/market-overview" },
+      { "id": "nav-settings", "label": "Settings", "icon": "Settings", "path": "/settings" },
+      { "id": "nav-fo-coming-soon", "label": "F&O (Futures & Options)", "badge": "SOON", "icon": "Zap", "path": "/fo" }
+    ],
+    "header_controls": [
+      "Market Regime Badge (e.g. NIFTY Bullish / High Volatility)",
+      "NIFTY 50 Live Ticker Pill (24,350.80 +0.72%)",
+      "SENSEX Live Ticker Pill (79,890.15 +0.65%)",
+      "Quick Ticker Search Bar (Cmd + K / Search Equity)",
+      "Alerts Slide-over Drawer Trigger",
+      "Persona Mode Switcher (Swing Trader / Breakout / Day Trader)",
+      "Theme Toggle (Dark/Light)",
+      "User Profile Avatar & Broker Status Pill"
+    ]
+  },
+  "visual_states": {
+    "Bullish": {
+      "badge_class": "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+      "text_class": "text-emerald-400 font-medium",
+      "icon": "TrendingUp"
+    },
+    "Neutral": {
+      "badge_class": "bg-amber-500/10 text-amber-400 border border-amber-500/30",
+      "text_class": "text-amber-400 font-medium",
+      "icon": "Minus"
+    },
+    "Bearish": {
+      "badge_class": "bg-rose-500/10 text-rose-400 border border-rose-500/30",
+      "text_class": "text-rose-400 font-medium",
+      "icon": "TrendingDown"
+    },
+    "Monitoring": {
+      "badge_class": "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 animate-pulse",
+      "text_class": "text-cyan-400 font-semibold",
+      "icon": "Eye"
+    },
+    "Target Hit": {
+      "badge_class": "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]",
+      "text_class": "text-emerald-400 font-bold",
+      "icon": "CheckCircle2"
+    },
+    "Stop Loss Hit": {
+      "badge_class": "bg-rose-500/20 text-rose-300 border border-rose-500/50",
+      "text_class": "text-rose-400 font-bold",
+      "icon": "AlertTriangle"
+    }
+  },
+  "opportunity_score_breakdown": {
+    "max_points": 100,
+    "components": [
+      { "key": "technical", "name": "Technical Analysis", "max": 35, "description": "RSI momentum, MACD crossover, Moving average alignment (20/50/200 EMA), Chart breakouts" },
+      { "key": "fundamental", "name": "Fundamental Health", "max": 25, "description": "PE relative to sector, ROE %, Quarterly PAT growth %, Debt to Equity ratio" },
+      { "key": "sentiment", "name": "News & Sentiment", "max": 15, "description": "Institutional analyst upgrades, FII/DII accumulation, Media sentiment score" },
+      { "key": "sector", "name": "Sector Strength", "max": 10, "description": "Nifty Sector Index relative momentum (e.g. Nifty IT / Nifty Auto outperformance)" },
+      { "key": "risk_reward", "name": "Risk / Reward Ratio", "max": 15, "description": "Tight stop loss placement with at least 1:2.0 to 1:3.5 target upside potential" }
+    ]
+  },
+  "media_assets": {
+    "image_urls": {
+      "bse_building": "https://images.unsplash.com/photo-1743712578499-7266d3d89dc3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwxfHxzdG9jayUyMG1hcmtldCUyMHRyYWRpbmclMjBjaGFydCUyMGdyYXBoJTIwZmluYW5jZSUyMGluZGlhJTIwZGVza3xlbnwwfHx8fDE3OTA3NTY0MjV8MA&ixlib=rb-4.1.0&q=85",
+      "trading_screen_1": "https://images.unsplash.com/photo-1689732888407-310424e3a372?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHw0fHxzdG9jayUyMG1hcmtldCUyMGNoYXJ0JTIwYW5hbHl0aWNhbCUyMHNjcmVlbiUyMGRhcmt8ZW58MHx8fHwxNzkwNzU2NDMyfDA&ixlib=rb-4.1.0&q=85",
+      "trading_screen_2": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxzdG9jayUyMG1hcmtldCUyMGNoYXJ0JTIwYW5hbHl0aWNhbCUyMHNjcmVlbiUyMGRhcmt8ZW58MHx8fHwxNzkwNzU2NDMyfDA&ixlib=rb-4.1.0&q=85",
+      "trading_screen_3": "https://images.unsplash.com/photo-1651341050677-24dba59ce0fd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxzdG9jayUyMG1hcmtldCUyMGNoYXJ0JTIwYW5hbHl0aWNhbCUyMHNjcmVlbiUyMGRhcmt8ZW58MHx8fHwxNzkwNzU2NDMyfDA&ixlib=rb-4.1.0&q=85",
+      "indian_currency_symbol": "https://images.unsplash.com/photo-1565373679580-fc0cb538f49c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxzdG9jayUyMG1hcmtldCUyMHRyYWRpbmclMjBjaGFydCUyMGdyYXBoJTIwZmluYW5jZSUyMGluZGlhJTIwZGVza3xlbnwwfHx8fDE3OTA3NTY0MjV8MA&ixlib=rb-4.1.0&q=85"
+    },
+    "broker_logos": [
+      { "name": "Zerodha Kite", "color": "#388E3C", "status": "Connected (Read Only)" },
+      { "name": "Groww", "color": "#00D09C", "status": "Ready to Link" },
+      { "name": "AngelOne", "color": "#EB1521", "status": "Ready to Link" },
+      { "name": "Upstox", "color": "#2D3282", "status": "Ready to Link" },
+      { "name": "ICICI Direct", "color": "#F26522", "status": "Ready to Link" }
+    ]
+  },
+  "key_features_and_views": {
+    "1_Dashboard": {
+      "components": [
+        "Market Status Header with NIFTY 50 live metric (+0.72%), SENSEX (+0.65%), India VIX (13.40 -2.1%), Market Regime tag 'BULLISH MOMENTUM'",
+        "Opportunity Score Spotlight: Top 3 High-Conviction Equity Trade Ideas with 100-pt Score gauge",
+        "Active Monitored Ideas Summary widget with real-time target proximity bar",
+        "Recent Market Alerts feed (Breakout detected, Target 1 reached, Stop loss trailing alert)",
+        "Sector Heatmap Snapshot (Nifty IT +1.8%, Nifty Bank +0.4%, Nifty Auto +1.2%)"
+      ]
+    },
+    "2_Equity_Research": {
+      "components": [
+        "Equity Scanner Table: 25+ NIFTY 500 stocks with columns for Symbol, Sector, Market Cap, Price, Daily Change %, Technical Score, Fundamental Score, Sentiment Score, Sector Score, Risk/Reward Score, Total Score (Out of 100), and Action.",
+        "Interactive Filter Bar: Filter by Sector, Market Cap (Large, Mid, Small), Score threshold (>80, >70), Regime, RSI range.",
+        "Equity Detail Drawer / Modal: When clicking any stock, show complete deep-dive with Price Chart (Recharts area/candlestick), 100-point breakdown visual radar/bars, key valuation metrics (P/E, P/B, Debt/Equity, ROE, PAT Growth), Technical Signals table (RSI, MACD, 20/50/200 EMA), Analyst Sentiment & Recent News feed."
+      ]
+    },
+    "3_Trade_Ideas": {
+      "components": [
+        "Trade Idea Cards with score badge (e.g., 88/100 EXCELLENT), Action Type (BUY / BREAKOUT / SWING), Entry Price (₹), Stop Loss (₹), Target 1 (₹), Target 2 (₹), Risk-Reward ratio (e.g. 1:2.85).",
+        "'Why This Idea?' section with 3 clear bullet points explaining research rationale.",
+        "Risk Warnings box (e.g. 'Key Earnings Release on Thursday', 'Tight stop loss required due to resistance at ₹2,850').",
+        "Primary Action: 'MONITOR THIS IDEA' button (instantly adds to My Monitoring page with feedback toast).",
+        "Secondary Action: 'VIEW FULL RESEARCH ANALYSIS' button (opens comprehensive research popover)."
+      ]
+    },
+    "4_My_Monitoring": {
+      "components": [
+        "Tracked Ideas Table & Grid view.",
+        "Status Filters: All, Active Monitoring, Target 1 Hit, Target 2 Hit, Trailing Stop Active, Stop Loss Hit, Closed.",
+        "Proximity Gauge: Percentage progress bar showing how close current price is to Target 1 or Stop Loss.",
+        "Trailing Stop Loss Manager: Interactive button to adjust stop loss or activate automatic trailing stop alert.",
+        "Simulated P&L tracking based on suggested entry price vs current market price."
+      ]
+    },
+    "5_Trade_Journal": {
+      "components": [
+        "Trade Logging Form: Add manual or monitored trade log (Symbol, Entry Date, Exit Date, Entry Price, Exit Price, Quantity, Setup Category e.g. Breakout, Swing, Reversal, Trade Emotion/Mindset notes, Win/Loss flag).",
+        "Trade Metrics KPI Summary: Win Rate %, Total Simulated P&L (₹), Average Risk:Reward achieved, Profit Factor, Best Trade.",
+        "Equity Growth Curve Chart (Recharts line chart showing account growth over time).",
+        "Journal History Table with filtering by setup type and outcome."
+      ]
+    },
+    "6_Market_Overview": {
+      "components": [
+        "Sector Performance Heatmap with interactive timeframes (1D, 1W, 1M, YTD).",
+        "Institutional Activity: FII / DII Net Flow breakdown in ₹ Crores (Daily & Monthly).",
+        "Advance / Decline Ratio Meter with Bull/Bear dominance percentage.",
+        "Market Breadth: Stocks above 50 EMA vs 200 EMA ratio.",
+        "Top Gainers & Top Losers table in NIFTY 50."
+      ]
+    },
+    "7_Settings": {
+      "components": [
+        "User Profile & Account Info",
+        "Risk Governance Parameters: Default Max Risk % per trade (e.g. 1.5%), Default Stop Loss % buffer, Max open positions limit.",
+        "Instant Notifications: Telegram Bot token setup, WhatsApp Alert webhook, In-app push notification toggles.",
+        "Broker API Integration: Read-only API key setup for Zerodha Kite, Groww, AngelOne with connection diagnostic test button.",
+        "Trading Persona Switcher: Switch UI presets for Swing Trader, Breakout Trader, or Position Investor."
+      ]
+    },
+    "8_FO_Coming_Soon": {
+      "components": [
+        "F&O (Futures & Options) Feature Teaser & Interactive Option Chain Preview (NIFTY / BANKNIFTY Call/Put OI analysis, Max Pain calculation, PCR ratio teaser).",
+        "Early Access Request Form & Feature Poll (Vote for Strategy Builder, Option Greeks, Volatility Surface)."
+      ]
+    }
+  },
+  "component_guidelines": {
+    "buttons": "Always use clear states. Primary buttons: bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all duration-150. Accent buttons for Monitor: bg-emerald-600 hover:bg-emerald-500. Always include explicit data-testid attribute.",
+    "tables": "High density, hover rows with bg-slate-800/50, 1px border-slate-800, sticky headers with backdrop-blur-md, crisp font-mono for numeric columns (price, % change, scores).",
+    "modals_and_drawers": "Use Vaul / Radix Dialog with backdrop blur bg-slate-950/70 border border-slate-800 rounded-xl.",
+    "toasts": "Use Sonner for crisp financial notifications (e.g. 'Added TATAMOTORS to My Monitoring list', 'Trailing Stop Alert Triggered')."
+  },
+  "testing_requirements": {
+    "rule": "ALL interactive components MUST have explicit data-testid attributes formatted in kebab-case.",
+    "examples": [
+      "data-testid='nav-dashboard-link'",
+      "data-testid='nav-equity-link'",
+      "data-testid='nav-ideas-link'",
+      "data-testid='nav-monitoring-link'",
+      "data-testid='nav-journal-link'",
+      "data-testid='nav-overview-link'",
+      "data-testid='nav-settings-link'",
+      "data-testid='nav-fo-link'",
+      "data-testid='search-ticker-input'",
+      "data-testid='filter-sector-select'",
+      "data-testid='monitor-idea-button-TATAMOTORS'",
+      "data-testid='view-analysis-button-TATAMOTORS'",
+      "data-testid='opportunity-score-badge'",
+      "data-testid='theme-toggle-button'",
+      "data-testid='broker-connect-button-zerodha'"
+    ]
+  }
+}

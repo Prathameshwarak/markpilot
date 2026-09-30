@@ -1,0 +1,29 @@
+# MarketPilot local stack. NOTE: production uses managed MongoDB (Atlas) — this file is
+# for local development convenience only. Never commit real secrets; use backend/.env.
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    environment:
+      MONGO_URL: "mongodb://mongo:27017"
+    depends_on:
+      - mongo
+    ports:
+      - "8001:8001"
+
+volumes:
+  mongo_data:
