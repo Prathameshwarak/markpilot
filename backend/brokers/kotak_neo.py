@@ -73,7 +73,8 @@ class KotakNeoAdapter(BrokerAdapter):
         try:
             totp = pyotp.TOTP(settings.KOTAK_TOTP_SECRET).now()
             client = neo_api_client.NeoAPI(
-                consumer_key=settings.KOTAK_CONSUMER_KEY, environment=settings.KOTAK_ENVIRONMENT
+                consumer_key=settings.KOTAK_CONSUMER_KEY, environment=settings.KOTAK_ENVIRONMENT,
+                timeout=15.0,  # hard timeout so a stalled auth can't pin a FastAPI thread
             )
             client.totp_login(mobile_number=settings.KOTAK_MOBILE, ucc=settings.KOTAK_UCC, totp=totp)
             client.totp_validate(mpin=settings.KOTAK_MPIN)

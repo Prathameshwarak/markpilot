@@ -1,0 +1,24 @@
+{
+  "summary": "Milestone 2 verified: real read-only Kotak Neo adapter + provider factory correctly report NOT_CONFIGURED (no creds in env) while the app keeps serving deterministic MOCK data. Backend: 78/78 in-process pytest tests pass (all existing M1 + new test_broker.py, test_providers.py). New /app/backend/tests/test_m2_public.py (8/8 pass) validates against the public preview URL: /api/system/status expanded fields, /api/broker/kotak/status auth + shape + no secrets, /api/broker/kotak/test-connection auth + minimal 4-key shape, equities carry data_source=mock/data_quality=DEMO/is_live=false, /api/market/overview.market_status is OPEN/PRE_MARKET/CLOSED (Asia/Kolkata), and a global secret-leak sweep across 5 endpoints. Frontend Playwright flow: demo login -> dashboard-data-badge='Demo Market Data', equity-data-badge='Demo Data', Settings shows kotak-connection-panel with kotak-status-badge='NOT CONFIGURED', 'disabled' text present, kotak-test-connection-button click surfaces NOT_CONFIGURED, F&O coming soon visible, no place-order UI anywhere, 12 monitor-idea buttons work, journal loads.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_m2_public.py",
+    "/app/test_reports/pytest/m2_public.xml",
+    "/app/test_reports/pytest/m2_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/.env still has CORS_ORIGINS=\"*\" combined with httpOnly cookies + credentials — carried over from M1 iteration_1 review, still not addressed.",
+    "routes/system.py::_market_data_status returns 'MOCK'/'KOTAK' from services.DATA_SOURCE, but if a future provider errors mid-request there's no fallback status other than 'ERROR' — consider explicit health probe per request or cached status refresh cadence.",
+    "kotak_test_connection uses run_in_threadpool on adapter.authenticate — good; ensure the real Kotak SDK path also has a hard timeout so auth stalls don't hold FastAPI threads indefinitely when creds are later provided."
+  ],
+  "updated_files": ["/app/backend/tests/test_m2_public.py (new)"],
+  "success_rate": {"backend": "100% (78/78 pytest + 8/8 M2 public)", "frontend": "100% of M2 flows covered"},
+  "test_credentials": "demo@marketpilot.in / Demo1234! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None new for M2 (existing demo journal rows from iteration_1 still present).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "M2 endpoints: /api/system/status (public), /api/broker/kotak/status (auth), /api/broker/kotak/test-connection (auth, POST). Overview path is /api/market/overview (NOT /api/overview). /api/equities returns {count, equities:[...]}. Frontend testids confirmed: dashboard-data-badge, equity-data-badge, kotak-connection-panel, kotak-status-badge, kotak-test-connection-button, fno-coming-soon, nav-fo-link (F&O), nav-overview-link (Market Overview), monitor-idea-button-<SYMBOL>. To exercise the real Kotak adapter path against public URL you'd need KOTAK_* creds and MARKET_DATA_PROVIDER=kotak in backend/.env + supervisor restart.",
+  "rca of the issue": "N/A — no regressions and all M2 acceptance checks pass."
+}
