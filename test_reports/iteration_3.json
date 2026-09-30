@@ -1,0 +1,24 @@
+{
+  "summary": "Milestone 3 (final) verified. New Telegram notifications backend + Settings UI + security work end-to-end. Backend: /app/backend/tests/test_m3_public.py 8/8 pass against public URL — auth guards on GET/PUT /api/notifications/settings and POST /api/notifications/telegram/test (401 unauth), GET returns full preference shape + telegram_bot_configured=false with NO token leakage, PUT persists all 8 flags (re-GET verifies), POST /telegram/test returns {sent:false, configured:false, message:'Telegram bot is not configured on this server.'} without crashing, and a global secret sweep across /api/system/status, /api/settings, /api/notifications/settings, /api/notifications/telegram/test finds NO TELEGRAM_BOT_TOKEN pattern or forbidden key. Full backend regression: 93/94 pass (the single failure is test_e2e_public.py::test_monitor_refresh_close_flow returning 400 'Already monitoring this idea' — pre-existing demo-user dedup state, explicitly called out as expected in the review request, NOT a defect). Frontend Playwright (demo login OK, land on '/'): Settings shows telegram-not-configured banner, toggling settings-telegram-toggle reveals telegram-chatid-input + telegram-test-button + all six per-alert toggles (notif-alert-entry-toggle, notif-alert-stop-toggle, notif-alert-target-toggle, notif-alert-trailing-toggle, notif-alert-regime-toggle, notif-daily-summary-toggle); Save persists — after reload telegram_enabled=true and chat_id='987654321' come back from server. Kotak regression: kotak-status-badge='NOT CONFIGURED'. F&O route is /fo (not /fno) — fno-coming-soon visible, no order-placement UI. Dashboard shows 'Demo Market Data', Equity shows 'Demo Data'. No TELEGRAM_BOT_TOKEN in frontend source or built bundle (/app/frontend/build).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_m3_public.py",
+    "/app/test_reports/pytest/m3_public.xml",
+    "/app/test_reports/pytest/m3_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/.env still has CORS_ORIGINS='*' while cookies+credentials are used — carried over from M1/M2, still worth tightening for production hardening.",
+    "routes/notifications.py::update_notification_settings persists ONLY the notification keys — good; but PUT accepts NotificationSettingsIn (Pydantic strict) which already blocks unknown fields. Consider also stripping/ignoring any client-supplied telegram_bot_configured on PUT (currently ignored via model, but adding an explicit exclude in model_dump would document intent).",
+    "telegram.py logs only exception type — good discipline; consider adding a short structured logger.info on successful sends (no token) for observability."
+  ],
+  "updated_files": ["/app/backend/tests/test_m3_public.py (new)"],
+  "success_rate": {"backend": "100% (93/93 relevant; 1 pre-existing dedup-behavior test excluded per review)", "frontend": "100% of M3 flows covered"},
+  "test_credentials": "demo@marketpilot.in / Demo1234! (from /app/memory/test_credentials.md). No TELEGRAM_BOT_TOKEN in backend/.env — 'not configured' path verified.",
+  "seed_data_creation": "None — PUT /api/notifications/settings mutated demo user's user_settings doc with telegram_enabled=true, chat_id='987654321', alert_entry=false, alert_target=false, alert_regime=false, daily_summary=true, alert_stop=true, alert_trailing=true (safe test data; no external side effects since no bot token).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Notification endpoints all require auth (401 otherwise). Response shape from GET/PUT /api/notifications/settings: {telegram_enabled, telegram_chat_id, alert_entry, alert_stop, alert_target, alert_trailing, alert_regime, daily_summary, telegram_bot_configured}. TELEGRAM_BOT_TOKEN is server-side only; never in any API response or frontend bundle. F&O route path in App.js is '/fo' (NOT '/fno'); testid fno-coming-soon is on that page. Login redirects to '/' (root), which renders the Dashboard — do not wait for '/dashboard'. Kotak: still NOT_CONFIGURED, demo data pipeline intact.",
+  "rca of the issue": "N/A — all M3 acceptance criteria met, no regressions."
+}
