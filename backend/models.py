@@ -88,3 +88,14 @@ class SettingsIn(BaseModel):
     telegram_chat_id: Optional[str] = ""
     in_app_notifications: bool = True
     persona: str = Field(default="Swing Trader")
+
+
+class NotificationSettingsIn(BaseModel):
+    telegram_enabled: bool = False
+    telegram_chat_id: Optional[str] = Field(default="", max_length=64)
+    alert_entry: bool = True
+    alert_stop: bool = True
+    alert_target: bool = True
+    alert_trailing: bool = True
+    alert_regime: bool = True
+    daily_summary: bool = False

@@ -28,6 +28,10 @@ class Settings:
     TARGET1_R = 1.0
     TARGET2_R = 2.0
 
+    # Application
+    ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "")
+
     # Market data provider selection: "mock" (default, deterministic) or "kotak" (live).
     MARKET_DATA_PROVIDER = os.environ.get("MARKET_DATA_PROVIDER", "mock").strip().lower()
 
@@ -60,6 +64,13 @@ class Settings:
 
     def kotak_configured(self) -> bool:
         return all(getattr(self, k) for k in self.kotak_required_keys())
+
+    def telegram_configured(self) -> bool:
+        return bool(self.TELEGRAM_BOT_TOKEN)
+
+    def cors_origins(self) -> list[str]:
+        extra = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip() and o.strip() != "*"]
+        return list({self.FRONTEND_URL, "http://localhost:3000", *extra})
 
 
 settings = Settings()

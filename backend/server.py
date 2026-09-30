@@ -11,15 +11,16 @@ from routes.equities import router as equities_router
 from routes.monitoring import router as monitoring_router
 from routes.alerts import router as alerts_router
 from routes.system import router as system_router
+from routes.notifications import router as notifications_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("marketpilot")
 
-app = FastAPI(title="MarketPilot API", version="0.1.0")
+app = FastAPI(title="MarketPilot API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list({settings.FRONTEND_URL, "http://localhost:3000"}),
+    allow_origins=settings.cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +31,7 @@ app.include_router(equities_router)
 app.include_router(monitoring_router)
 app.include_router(alerts_router)
 app.include_router(system_router)
+app.include_router(notifications_router)
 
 
 @app.get("/api/health")

@@ -23,12 +23,15 @@ export default function Settings() {
   const [status, setStatus] = useState(null);
   const [kotak, setKotak] = useState(null);
   const [testing, setTesting] = useState(false);
+  const [notif, setNotif] = useState(null);
+  const [testingTg, setTestingTg] = useState(false);
 
   const loadKotak = () => api.get("/broker/kotak/status").then((r) => setKotak(r.data)).catch(() => {});
 
   useEffect(() => {
     api.get("/settings").then((r) => setS(r.data)).catch(() => {});
     api.get("/system/status").then((r) => setStatus(r.data)).catch(() => {});
+    api.get("/notifications/settings").then((r) => setNotif(r.data)).catch(() => {});
     loadKotak();
   }, []);
 
@@ -46,9 +49,31 @@ export default function Settings() {
     }
   };
 
+  const testTelegram = async () => {
+    setTestingTg(true);
+    try {
+      const { data } = await api.post("/notifications/telegram/test", { telegram_chat_id: notif?.telegram_chat_id });
+      if (data.sent) toast.success(data.message);
+      else toast.error(data.message);
+    } catch {
+      toast.error("Telegram test failed");
+    } finally {
+      setTestingTg(false);
+    }
+  };
+
   const save = async () => {
-    try { const { data } = await api.put("/settings", s); setS(data); toast.success("Settings saved"); }
-    catch { toast.error("Save failed"); }
+    try {
+      const { data } = await api.put("/settings", s);
+      setS(data);
+      if (notif) {
+        const { telegram_bot_configured, ...payload } = notif;
+        await api.put("/notifications/settings", payload);
+      }
+      toast.success("Settings saved");
+    } catch {
+      toast.error("Save failed");
+    }
   };
 
   if (!s) return <div className="py-20 text-center text-sm text-slate-500">Loading…</div>;
@@ -89,16 +114,42 @@ export default function Settings() {
           <div className="mb-3 flex items-center gap-2"><Bell size={16} className="text-amber-400" /><h2 className="font-display text-lg font-bold">Notifications</h2></div>
           <label className="flex items-center justify-between py-2 text-sm">
             <span className="text-slate-300">In-app notifications</span>
-            <input type="checkbox" checked={s.in_app_notifications} onChange={(e) => setS({ ...s, in_app_notifications: e.target.checked })} className="h-4 w-4 accent-blue-500" />
+            <input type="checkbox" checked={s.in_app_notifications} onChange={(e) => setS({ ...s, in_app_notifications: e.target.checked })} className="h-4 w-4 accent-blue-500" data-testid="notif-inapp-toggle" />
           </label>
-          <label className="flex items-center justify-between py-2 text-sm">
-            <span className="flex items-center gap-2 text-slate-300"><Send size={14} /> Telegram alerts</span>
-            <input type="checkbox" checked={s.telegram_enabled} onChange={(e) => setS({ ...s, telegram_enabled: e.target.checked })} className="h-4 w-4 accent-blue-500" data-testid="settings-telegram-toggle" />
-          </label>
-          {s.telegram_enabled && (
-            <input placeholder="Telegram Chat ID" value={s.telegram_chat_id || ""} onChange={(e) => setS({ ...s, telegram_chat_id: e.target.value })} className={`${input} mt-2`} />
+
+          {notif && !notif.telegram_bot_configured && (
+            <div className="my-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-400" data-testid="telegram-not-configured">
+              Telegram bot is not configured on this server.
+            </div>
           )}
-          <p className="mt-2 text-[11px] text-slate-600">Telegram sending is config-ready in V1; delivery activates in a later milestone.</p>
+
+          <label className="flex items-center justify-between py-2 text-sm">
+            <span className="flex items-center gap-2 text-slate-300"><Send size={14} /> Telegram notifications</span>
+            <input type="checkbox" checked={notif?.telegram_enabled || false} onChange={(e) => setNotif({ ...notif, telegram_enabled: e.target.checked })} className="h-4 w-4 accent-blue-500" data-testid="settings-telegram-toggle" />
+          </label>
+
+          {notif?.telegram_enabled && (
+            <>
+              <input placeholder="Telegram Chat ID" value={notif.telegram_chat_id || ""} onChange={(e) => setNotif({ ...notif, telegram_chat_id: e.target.value })} className={`${input} mt-1`} data-testid="telegram-chatid-input" />
+              <button onClick={testTelegram} disabled={testingTg || !notif.telegram_bot_configured} data-testid="telegram-test-button"
+                className="mt-2 w-full rounded-lg border border-amber-500/30 bg-amber-500/10 py-2 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 disabled:opacity-50">
+                {testingTg ? "Sending…" : "Test Telegram Notification"}
+              </button>
+
+              <div className="mt-3 space-y-1 border-t border-slate-800 pt-3">
+                {[
+                  ["alert_entry", "Entry Alert"], ["alert_stop", "Stop Loss Alert"], ["alert_target", "Target Alert"],
+                  ["alert_trailing", "Trailing Stop Alert"], ["alert_regime", "Market Regime Alert"], ["daily_summary", "Daily Summary"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between py-1.5 text-sm">
+                    <span className="text-slate-400">{label}</span>
+                    <input type="checkbox" checked={notif[key]} onChange={(e) => setNotif({ ...notif, [key]: e.target.checked })} className="h-4 w-4 accent-blue-500" data-testid={`notif-${key.replace("_", "-")}-toggle`} />
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+          <p className="mt-2 text-[11px] text-slate-600">The Telegram bot token is stored server-side only and is never exposed here.</p>
         </Card>
 
         <Card>

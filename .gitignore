@@ -1,11 +1,14 @@
 # ---- Python / backend ----
 __pycache__/
+*.pyc
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
 .pytest_cache/
 .mypy_cache/
+coverage/
+.coverage
 
 # ---- Node / frontend ----
 node_modules/
@@ -27,4 +30,3 @@ telegram_*.json
 .idea/
 .vscode/
 *.log
-frontend/node_modules/.cache/default-development/0.pack
