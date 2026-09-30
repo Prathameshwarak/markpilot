@@ -1,0 +1,32 @@
+{
+  "summary": "Milestone 1 backend + frontend E2E verified. Created /app/backend/tests/test_e2e_public.py with 15 tests against the public preview URL — all pass. Frontend Playwright flow covered: login (demo user) -> Dashboard (regime badge + opportunity score badges) -> Equity Research (12 rows, sector/direction filters work, click into detail) -> Trade Ideas (12 cards, monitor CTA creates a monitoring session) -> My Monitoring (sessions listed, refresh & close working) -> Trade Journal (form + KPIs + newly saved row visible) -> Market Overview (NIFTY, regime, sector bars, top gainers/losers) -> Settings (save works) -> F&O (Coming Soon confirmed, no order UI anywhere). NO order-placement buttons exist. /api/system/status confirms broker.order_execution=disabled and modules.fno=coming_soon.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_e2e_public.py",
+    "/app/test_reports/pytest/e2e_public.xml"
+  ],
+  "action_items": [
+    "Docs/testid drift (non-blocking): review_request listed nav-market-link and nav-fno-link, but code uses nav-overview-link and nav-fo-link. Update the review request spec or add aliased testids so external clients relying on the documented names don't break."
+  ],
+  "critical_code_review_comments": [
+    "backend/.env has CORS_ORIGINS=\"*\" while auth uses httpOnly cookies with SameSite=None + credentials. Explicit allowed origin(s) are recommended for production; wildcard + credentials is fragile and browsers may block it.",
+    "JournalEntryIn accepts free-form symbol/setup/direction strings without enum validation — consider constraining direction to {bullish,bearish} and outcome to {win,loss,open} to protect KPI math.",
+    "Journal form on the Trade Journal page has no client-side validation feedback for empty/invalid symbol (form still submits and backend rejects with 422 silently). Add inline error state.",
+    "Equity page initial render can momentarily show zero rows before data hydrates; add a loading state / skeleton to avoid perceived emptiness."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_e2e_public.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% of covered flows"},
+  "test_credentials": "Used demo@marketpilot.in / Demo1234! from /app/memory/test_credentials.md",
+  "seed_data_creation": "Test users test_<hex>@example.org created via /api/auth/register; TESTSYM row in demo user's journal. All prefixed for later cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend e2e suite lives at /app/backend/tests/test_e2e_public.py — run against REACT_APP_BACKEND_URL. Existing pytest suite (/app/backend/tests/test_api.py, test_monitoring.py, test_risk.py, test_scoring.py, test_technical.py) uses in-process TestClient. Nav testids in the frontend are: nav-dashboard-link, nav-equity-link, nav-ideas-link, nav-monitoring-link, nav-journal-link, nav-overview-link (Market Overview), nav-settings-link, nav-fo-link (F&O). Idea ids follow idea-<SYMBOL>. Journal payload requires entry_price (not entry).",
+  "rca of the issue": "N/A — no functional bugs found in Milestone 1 scope."
+}

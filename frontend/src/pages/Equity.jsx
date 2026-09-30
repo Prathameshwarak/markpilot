@@ -8,12 +8,13 @@ import { fmtINR, fmtNum, scoreTier } from "../lib/format";
 export default function Equity() {
   const navigate = useNavigate();
   const [equities, setEquities] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [sector, setSector] = useState("all");
   const [dir, setDir] = useState("all");
   const [minScore, setMinScore] = useState(0);
 
   useEffect(() => {
-    api.get("/equities").then((r) => setEquities(r.data.equities)).catch(() => {});
+    api.get("/equities").then((r) => setEquities(r.data.equities)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const sectors = useMemo(() => ["all", ...new Set(equities.map((e) => e.sector))], [equities]);
@@ -79,6 +80,12 @@ export default function Equity() {
             </tr>
           </thead>
           <tbody>
+            {loading && (
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500" data-testid="equity-loading">Loading equities…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">No equities match the filters.</td></tr>
+            )}
             {filtered.map((e) => {
               const tier = scoreTier(e.scores.overall);
               return (

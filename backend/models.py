@@ -1,7 +1,7 @@
 """Pydantic models. ObjectId is mapped to a string id via BaseDocument."""
 from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Optional, Annotated, Any
+from typing import Optional, Annotated, Any, Literal
 from pydantic import BaseModel, Field, BeforeValidator, EmailStr, ConfigDict
 from bson import ObjectId
 
@@ -68,15 +68,15 @@ class MonitorEventOut(BaseModel):
 
 
 class JournalEntryIn(BaseModel):
-    symbol: str
+    symbol: str = Field(min_length=1, max_length=20)
     setup: str = Field(default="Swing")
-    direction: str = Field(default="bullish")
-    entry_price: float
-    exit_price: Optional[float] = None
+    direction: Literal["bullish", "bearish"] = "bullish"
+    entry_price: float = Field(gt=0)
+    exit_price: Optional[float] = Field(default=None, gt=0)
     quantity: int = Field(default=1, ge=1)
     entry_date: Optional[str] = None
     exit_date: Optional[str] = None
-    outcome: Optional[str] = None  # win | loss | open
+    outcome: Literal["win", "loss", "open"] = "open"
     notes: Optional[str] = ""
 
 
