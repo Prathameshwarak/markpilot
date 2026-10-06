@@ -34,6 +34,28 @@ READ_ONLY_METHODS = {
 _INTERVALS = {"day": "D", "daily": "D", "1d": "D", "week": "W", "weekly": "W"}
 
 
+# Kotak allows at most 180 days per daily/weekly historical request; stay safely below.
+MAX_HISTORY_SPAN_DAYS = 170
+
+
+def history_window(days: int = 120, start: str | None = None, end: str | None = None):
+    """(from_date, to_date) as dates, never None, span <= MAX_HISTORY_SPAN_DAYS."""
+    to_d = date.fromisoformat(end) if end else date.today()
+    want = int(days * 1.45) + 5  # calendar days covering `days` trading sessions
+    span = max(1, min(MAX_HISTORY_SPAN_DAYS, want))
+    from_d = date.fromisoformat(start) if start else to_d - timedelta(days=span)
+    if (to_d - from_d).days > MAX_HISTORY_SPAN_DAYS:
+        from_d = to_d - timedelta(days=MAX_HISTORY_SPAN_DAYS)
+    return from_d, to_d
+
+
+def _float(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _num(d: dict, *keys, default=None):
     for k in keys:
         v = d.get(k)
@@ -61,16 +83,26 @@ def _sanitize(msg) -> str:
 
 
 def sdk_error(resp) -> str | None:
-    """Return a sanitized error message if `resp` is an SDK error payload, else None.
+    """Return a sanitized error message if `resp` is an SDK/backend error payload, else None.
 
-    The SDK reports many failures as dicts rather than exceptions, e.g.
-    {"error": [{"code": "400", "message": "..."}]}, {"Error": "...", "Exception": "..."},
-    or {"stat": "Not_Ok", "emsg": "..."}.
+    Documented failure shapes include {"status": "ERROR", "fault": {"code": 400, "message": "..."}},
+    {"error": [{"code": "400", "message": "..."}]}, {"Error": "...", "Exception": "..."}
+    and {"stat": "Not_Ok", "emsg": "..."}. A list reply (quotes) is checked via its first item.
     """
     if resp is None:
         return "Empty response from Kotak"
+    if isinstance(resp, list):
+        if not resp:
+            return "Empty response from Kotak"
+        return sdk_error(resp[0]) if isinstance(resp[0], dict) and any(
+            k in resp[0] for k in ("error", "Error", "fault", "stat", "emsg")) else None
     if not isinstance(resp, dict):
         return None
+    fault = resp.get("fault")
+    if isinstance(fault, dict) and (fault.get("message") or fault.get("code")):
+        code = fault.get("code")
+        m = fault.get("message") or "Kotak returned an error"
+        return _sanitize(f"{m} (code {code})" if code else m)
     err = resp.get("error") or resp.get("Error") or resp.get("errors")
     if err:
         if isinstance(err, list) and err and isinstance(err[0], dict):
@@ -236,25 +268,46 @@ class KotakNeoAdapter(BrokerAdapter):
         self._last_data_received = quote["timestamp"]
         return quote
 
-    def _normalize_quote(self, resp: dict, inst) -> dict:
-        rows = resp.get("data") if isinstance(resp, dict) else None
-        row = rows[0] if isinstance(rows, list) and rows else (resp if isinstance(resp, dict) else {})
-        ltp = _num(row, "last_traded_price", "ltp", "last_price")
-        prev_close = _num(row, "prev_close_price", "close_price", "close", "cls")
-        change_pct = None
-        if ltp is not None and prev_close:
-            change_pct = round((ltp / prev_close - 1) * 100, 2)
+    def _normalize_quote(self, resp, inst) -> dict:
+        """Parse a quotes() reply. kotakneoapi 3.x returns a plain list of dicts
+        (fields: ltp, per_change, change, ohlc{open,high,low,close}, last_volume, lstup_time);
+        a legacy {"data": [...]} wrapper is tolerated. Raises KotakAPIError if no usable
+        price can be read, so a broken reply never shows up as LIVE with default values."""
+        if isinstance(resp, list):
+            rows = resp
+        elif isinstance(resp, dict) and isinstance(resp.get("data"), list):
+            rows = resp["data"]
+        else:
+            rows = []
+        row = next((r for r in rows if isinstance(r, dict)
+                    and str(r.get("exchange_token", inst.broker_instrument_token)) == str(inst.broker_instrument_token)),
+                   rows[0] if rows and isinstance(rows[0], dict) else None)
+        if not row:
+            raise KotakAPIError(f"quotes({inst.symbol}) failed: unparseable quote response")
+        ohlc = row.get("ohlc") if isinstance(row.get("ohlc"), dict) else {}
+        ltp = _float(row.get("ltp", row.get("last_traded_price")))
+        if ltp is None or ltp <= 0:
+            raise KotakAPIError(f"quotes({inst.symbol}) failed: no valid last traded price")
+        prev_close = _float(ohlc.get("close", row.get("prev_close_price")))
+        change_pct = _float(row.get("per_change"))
+        if change_pct is None and prev_close:
+            change_pct = (ltp / prev_close - 1) * 100
+        ts = row.get("lstup_time") or row.get("last_traded_time")
+        try:
+            ts = datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OverflowError, OSError):
+            ts = ts or datetime.now(timezone.utc).isoformat()
         return {
             "symbol": inst.symbol,
             "exchange": inst.exchange,
             "ltp": ltp,
-            "open": _num(row, "open_price", "open", "op"),
-            "high": _num(row, "high_price", "high", "hp"),
-            "low": _num(row, "low_price", "low", "lp"),
+            "open": _float(ohlc.get("open")),
+            "high": _float(ohlc.get("high")),
+            "low": _float(ohlc.get("low")),
             "close": prev_close,
-            "volume": _num(row, "volume", "vol_traded", "v"),
-            "change_pct": change_pct,
-            "timestamp": row.get("last_traded_time") or datetime.now(timezone.utc).isoformat(),
+            "volume": _float(row.get("last_volume", row.get("volume"))),
+            "change_pct": round(change_pct, 2) if change_pct is not None else None,
+            "timestamp": str(ts),
             "source": "kotak",
             "is_live": True,
         }
@@ -262,33 +315,47 @@ class KotakNeoAdapter(BrokerAdapter):
     # ---- historical ----
     def get_historical_data(self, symbol: str, interval: str = "day", days: int = 120,
                             start: str | None = None, end: str | None = None) -> list[dict]:
-        """Daily (or other interval) candles. `symbol` may be a stock in the universe or an
-        index name known to instruments.index_token (e.g. "NIFTY")."""
+        """Daily (or weekly) candles. `symbol` may be a stock in the universe or an index
+        (e.g. "NIFTY"). Every request stays within Kotak's 180-day daily/weekly limit
+        (MAX_HISTORY_SPAN_DAYS calendar days). Indices try each documented identifier
+        (name first, e.g. "nse_cm|Nifty 50") and remember the one that works."""
         client = self._data_client()
-        neosymbol = instruments.neosymbol(symbol)
-        if not neosymbol:
+        candidates = instruments.neosymbol_candidates(symbol)
+        if not candidates:
             raise ValueError(f"Unknown instrument: {symbol}")
-        to_d = date.fromisoformat(end) if end else date.today()
-        # Calendar span: ~1.6x trading days covers weekends/holidays.
-        from_d = date.fromisoformat(start) if start else to_d - timedelta(days=int(days * 1.6) + 10)
-        try:
-            resp = _check(client.historical_data(
-                neosymbol=neosymbol,
-                interval=_INTERVALS.get(interval, interval),
-                from_date=from_d.isoformat(),
-                to_date=to_d.isoformat(),
-            ), f"historical_data({symbol})")
-        except Exception as e:
-            self._record_error(f"{type(e).__name__}: {e}")
-            raise
-        candles = self._normalize_candles(resp)
-        if candles:
+        from_d, to_d = history_window(days, start, end)
+        sdk_interval = _INTERVALS.get(interval, interval)
+        errors = []
+        for neosymbol in candidates:
+            try:
+                resp = _check(client.historical_data(
+                    neosymbol=neosymbol, interval=sdk_interval,
+                    from_date=from_d.isoformat(), to_date=to_d.isoformat(),
+                ), f"historical_data({symbol})")
+                candles = self._normalize_candles(resp)
+                if not candles:
+                    raise KotakAPIError(f"historical_data({symbol}) failed: no candles in response")
+            except Exception as e:
+                errors.append(f"{neosymbol}: {type(e).__name__}: {e}")
+                continue
+            if len(candidates) > 1:
+                instruments.remember_index_neosymbol(symbol, neosymbol)
+                logger.info("Kotak history for %s served via %s", symbol, neosymbol)
             self._last_data_received = candles[-1]["timestamp"]
-        return candles
+            return candles
+        self._record_error("; ".join(errors))
+        raise KotakAPIError(_sanitize("; ".join(errors)))
 
     @staticmethod
     def _normalize_candles(resp) -> list[dict]:
-        rows = resp.get("data") if isinstance(resp, dict) else resp
+        """kotakneoapi 3.x: {"status": "success", "data": {"candles": [[ts,o,h,l,c,v,oi], ...]}}.
+        A legacy list under "data" is tolerated. Malformed rows are skipped."""
+        rows = None
+        if isinstance(resp, dict):
+            data = resp.get("data")
+            rows = data.get("candles") if isinstance(data, dict) else data
+        elif isinstance(resp, list):
+            rows = resp
         out: list[dict] = []
         if not isinstance(rows, list):
             return out
@@ -303,9 +370,28 @@ class KotakNeoAdapter(BrokerAdapter):
                 continue
             try:
                 out.append({"timestamp": str(ts), "open": float(o), "high": float(h),
-                            "low": float(l), "close": float(c), "volume": float(v)})
+                            "low": float(l), "close": float(c), "volume": float(v or 0)})
             except (TypeError, ValueError):
                 continue
+        return out
+
+    # ---- read-only validation (no credentials returned) ----
+    def validate_market_data(self) -> dict:
+        """One NIFTY history request + one stock quote using the consumer key. Returns only
+        sanitized facts (counts, which NIFTY identifier worked, error text)."""
+        out = {"nifty_history": False, "nifty_candles": 0, "nifty_neosymbol": None,
+               "quote": False, "quote_symbol": "RELIANCE", "errors": []}
+        try:
+            c = self.get_historical_data("NIFTY", days=30)
+            out.update(nifty_history=True, nifty_candles=len(c),
+                       nifty_neosymbol=instruments.neosymbol("NIFTY"))
+        except Exception as e:
+            out["errors"].append(_sanitize(f"NIFTY history: {e}"))
+        try:
+            q = self.get_quote("RELIANCE")
+            out.update(quote=True, quote_ltp=q["ltp"])
+        except Exception as e:
+            out["errors"].append(_sanitize(f"RELIANCE quote: {e}"))
         return out
 
     # ---- market-data streaming (architecture only; no alerting in this milestone) ----

@@ -101,14 +101,17 @@ def test_ws_subscribe_requires_connection():
 class _LiveClient:
     def __init__(self, *a, fail=(), **k):
         self.fail = set(fail)
+    # Official kotakneoapi 3.x shapes: quotes -> list; history -> data.candles.
     def quotes(self, instrument_tokens=None, quote_type=None):
         tok = instrument_tokens[0]["instrument_token"]
         if tok in self.fail:
-            return {"error": [{"message": "no quote"}]}
-        return {"data": [{"last_traded_price": 150.0, "prev_close_price": 148.0, "volume": 10}]}
+            return {"status": "ERROR", "fault": {"code": 400, "message": "no quote"}}
+        return [{"exchange_token": tok, "ltp": "150.0000", "per_change": "1.3500",
+                 "last_volume": "10", "ohlc": {"close": "148.0000"}}]
     def historical_data(self, neosymbol, interval, from_date, to_date):
-        return {"data": [[f"d{i}", 100 + i * .5, 102 + i * .5, 98 + i * .5, 101 + i * .5, 1000 + i]
-                         for i in range(120)]}
+        return {"status": "success", "data": {"candles": [
+            [f"d{i}", 100 + i * .5, 102 + i * .5, 98 + i * .5, 101 + i * .5, 1000 + i, None]
+            for i in range(120)]}}
 
 
 def _kotak_env(monkeypatch, client):
@@ -129,6 +132,7 @@ def test_rebuild_live(monkeypatch):
     st = services.rebuild()
     assert st["data_source"] == "kotak" and st["data_quality"] == "LIVE"
     assert services.EQUITIES["RELIANCE"]["data_source"] == "kotak"
+    assert services.EQUITIES["RELIANCE"]["change_pct"] == 1.35
     assert services.market_overview()["data_quality"] == "LIVE"
 
 
@@ -137,7 +141,7 @@ def test_rebuild_falls_back_to_demo_with_reason(monkeypatch):
 
     class Down(_LiveClient):
         def historical_data(self, **k):
-            return {"error": [{"code": "503", "message": "Service unavailable"}]}
+            return {"status": "ERROR", "fault": {"code": 503, "message": "Service unavailable"}}
 
     _kotak_env(monkeypatch, Down())
     st = services.rebuild()

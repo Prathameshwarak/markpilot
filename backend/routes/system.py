@@ -60,6 +60,13 @@ async def kotak_status(user: dict = Depends(get_current_user)):
     return get_kotak_adapter().health_check()
 
 
+@router.get("/broker/kotak/market-data-check")
+async def kotak_market_data_check(user: dict = Depends(get_current_user)):
+    """Read-only validation: one NIFTY history call + one quote using the consumer key.
+    Returns sanitized facts only (no credentials, tokens or session ids)."""
+    return await run_in_threadpool(get_kotak_adapter().validate_market_data)
+
+
 @router.post("/broker/kotak/test-connection")
 async def kotak_test_connection(user: dict = Depends(get_current_user)):
     adapter = get_kotak_adapter()

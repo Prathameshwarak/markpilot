@@ -60,17 +60,19 @@ class _FakeClient:
     def totp_validate(self, **k):
         self.logged_in = True
         return {"data": {"baseUrl": "https://x"}}
+    # Shapes below follow the official kotakneoapi 3.x docs (quotes.md / historical_data.md).
     def quotes(self, instrument_tokens=None, quote_type=None):
-        return {"data": [{
-            "trading_symbol": "RELIANCE-EQ", "exchange_segment": "nse_cm",
-            "last_traded_price": 2905.5, "open_price": 2890, "high_price": 2920,
-            "low_price": 2880, "prev_close_price": 2895, "volume": 1234567,
-            "last_traded_time": "2026-06-30T10:00:00+05:30",
-        }]}
+        return [{
+            "exchange_token": "2885", "display_symbol": "RELIANCE-EQ", "exchange": "nse_cm",
+            "lstup_time": "1782374657", "ltp": "2905.5000", "last_volume": "1234567",
+            "change": "10.5000", "per_change": "0.3600",
+            "ohlc": {"open": "2890.0000", "high": "2920.0000", "low": "2880.0000", "close": "2895.0000"},
+        }]
     def historical_data(self, **k):
         base = 100
-        return {"data": [[f"2026-01-{(i%28)+1:02d}", base + i, base + i + 2,
-                          base + i - 2, base + i + 1, 1000 + i] for i in range(120)]}
+        return {"status": "success", "interval": "D", "data": {"candles": [
+            [f"2026-01-{(i%28)+1:02d}T00:00:00+0530", base + i, base + i + 2,
+             base + i - 2, base + i + 1, 1000 + i, None] for i in range(120)]}}
 
 
 def _configure(monkeypatch):
@@ -93,15 +95,15 @@ def test_successful_mocked_auth_and_quote(monkeypatch):
     assert q["symbol"] == "RELIANCE"
     assert q["ltp"] == 2905.5
     assert q["source"] == "kotak" and q["is_live"] is True
-    assert q["change_pct"] == round((2905.5 / 2895 - 1) * 100, 2)
+    assert q["change_pct"] == 0.36 and q["close"] == 2895.0 and q["volume"] == 1234567.0
 
 
 def test_quote_normalization_missing_prevclose(monkeypatch):
     a = KotakNeoAdapter()
     inst = instruments.get_instrument("TCS")
-    out = a._normalize_quote({"data": [{"last_traded_price": 100}]}, inst)
+    out = a._normalize_quote([{"exchange_token": "11536", "ltp": "100"}], inst)
     assert out["ltp"] == 100
-    assert out["change_pct"] is None  # cannot compute without prev close
+    assert out["change_pct"] is None  # cannot compute without prev close / per_change
 
 
 def test_historical_normalization(monkeypatch):
@@ -120,8 +122,9 @@ def test_get_quote_requires_session():
 def test_invalid_broker_response():
     a = KotakNeoAdapter()
     inst = instruments.get_instrument("INFY")
-    out = a._normalize_quote({"garbage": True}, inst)  # malformed -> no crash
-    assert out["ltp"] is None
+    from brokers.kotak_neo import KotakAPIError
+    with pytest.raises(KotakAPIError):  # malformed -> clear failure, never fake values
+        a._normalize_quote({"garbage": True}, inst)
 
 
 # ---------- provider layer ----------
@@ -147,7 +150,7 @@ def test_kotak_provider_insufficient_data(monkeypatch):
 
     class ShortClient(_FakeClient):
         def historical_data(self, **k):
-            return {"data": [[f"d{i}", 1, 1, 1, 1, 1] for i in range(10)]}
+            return {"status": "success", "data": {"candles": [[f"d{i}", 1, 1, 1, 1, 1, None] for i in range(10)]}}
 
     a = KotakNeoAdapter()
     a._client = ShortClient()
@@ -173,7 +176,8 @@ class _RecordingClient(_FakeClient):
 
 
 def test_neosymbol_index_and_stock():
-    assert instruments.neosymbol("NIFTY") == "nse_cm|26000"
+    assert instruments.neosymbol("NIFTY") == "nse_cm|Nifty 50"
+    assert instruments.neosymbol_candidates("NIFTY") == ["nse_cm|Nifty 50", "nse_cm|26000"]
     assert instruments.neosymbol("RELIANCE") == "nse_cm|2885"
     assert instruments.neosymbol("NOPE") is None
 
@@ -185,7 +189,7 @@ def test_historical_data_uses_sdk_signature():
     call = a._client.hist_calls[0]
     assert call["neosymbol"] == "nse_cm|2885" and call["interval"] == "D"
     f, t = _date.fromisoformat(call["from_date"]), _date.fromisoformat(call["to_date"])
-    assert t == _date.today() and (t - f).days >= 120
+    assert t == _date.today() and 100 <= (t - f).days <= 170
 
 
 def test_nifty_uses_index_token_path():
@@ -195,7 +199,7 @@ def test_nifty_uses_index_token_path():
     a = KotakNeoAdapter()
     a._client = _RecordingClient()
     idx = KotakMarketDataProvider(a).get_index("NIFTY")
-    assert a._client.hist_calls[0]["neosymbol"] == "nse_cm|26000"
+    assert a._client.hist_calls[0]["neosymbol"] == "nse_cm|Nifty 50"
     assert idx["source"] == "kotak" and len(idx["close"]) == 120
 
 
@@ -203,6 +207,7 @@ def test_nifty_uses_index_token_path():
     {"error": [{"code": "401", "message": "Invalid consumer key"}]},
     {"Error": "Unexpected response format", "Exception": "x", "StatusCode": 502},
     {"stat": "Not_Ok", "emsg": "Session expired"},
+    {"status": "ERROR", "fault": {"code": 400, "message": "Invalid interval value"}},
 ])
 def test_sdk_error_payloads_are_failures(payload):
     from brokers.kotak_neo import KotakAPIError
@@ -276,3 +281,93 @@ def test_secrets_never_logged(monkeypatch, caplog):
     a.authenticate()
     blob = caplog.text + str(a.health_check())
     assert "987654" not in blob and "SECRETKEY123" not in blob
+
+
+# ---------- follow-up: real response shapes, 180-day limit, NIFTY fallback ----------
+@pytest.fixture(autouse=True)
+def _reset_index_resolution():
+    instruments._INDEX_RESOLVED.clear()
+    yield
+    instruments._INDEX_RESOLVED.clear()
+
+
+def test_candles_parsed_from_data_candles():
+    out = KotakNeoAdapter._normalize_candles(
+        {"status": "success", "data": {"candles": [["2026-08-20T09:15:00+0530", 1, 2, 0.5, 1.5, 100, None]]}})
+    assert out == [{"timestamp": "2026-08-20T09:15:00+0530", "open": 1.0, "high": 2.0,
+                    "low": 0.5, "close": 1.5, "volume": 100.0}]
+
+
+@pytest.mark.parametrize("payload", [{"status": "success", "data": {"candles": []}},
+                                     {"status": "success", "data": {}}, {"status": "success"}, {}])
+def test_empty_or_malformed_history_is_failure(payload):
+    from brokers.kotak_neo import KotakAPIError
+
+    class C(_FakeClient):
+        def historical_data(self, **k): return payload
+
+    a = KotakNeoAdapter()
+    a._client = C()
+    with pytest.raises(KotakAPIError):
+        a.get_historical_data("RELIANCE")
+
+
+@pytest.mark.parametrize("payload", [[], [{}], [{"ltp": ""}], [{"ltp": "0"}], {"data": "x"}, "junk"])
+def test_empty_or_malformed_quote_is_failure(payload):
+    from brokers.kotak_neo import KotakAPIError
+
+    class C(_FakeClient):
+        def quotes(self, **k): return payload
+
+    a = KotakNeoAdapter()
+    a._client = C()
+    with pytest.raises(KotakAPIError):
+        a.get_quote("RELIANCE")
+
+
+@pytest.mark.parametrize("days,start,end", [(120, None, None), (500, None, None), (1, None, None),
+                                            (120, "2025-01-01", "2026-06-30")])
+def test_history_window_never_exceeds_limit(days, start, end):
+    from brokers.kotak_neo import history_window, MAX_HISTORY_SPAN_DAYS
+    f, t = history_window(days, start, end)
+    assert f is not None and t is not None and f < t
+    assert (t - f).days <= MAX_HISTORY_SPAN_DAYS < 180
+
+
+def test_nifty_falls_back_to_numeric_token_and_remembers():
+    class C(_RecordingClient):
+        def historical_data(self, neosymbol, interval, from_date, to_date):
+            self.hist_calls.append(dict(neosymbol=neosymbol))
+            if neosymbol == "nse_cm|Nifty 50":
+                return {"status": "ERROR", "fault": {"code": 400, "message": "Invalid neosymbol"}}
+            return _FakeClient.historical_data(self)
+
+    a = KotakNeoAdapter()
+    a._client = C()
+    assert len(a.get_historical_data("NIFTY")) == 120
+    assert [c["neosymbol"] for c in a._client.hist_calls] == ["nse_cm|Nifty 50", "nse_cm|26000"]
+    assert instruments.neosymbol("NIFTY") == "nse_cm|26000"
+
+
+def test_nifty_all_identifiers_fail_reports_fault_message():
+    from brokers.kotak_neo import KotakAPIError
+
+    class C(_FakeClient):
+        def historical_data(self, **k):
+            return {"status": "ERROR", "fault": {"code": 400, "message": "Invalid neosymbol"}}
+
+    a = KotakNeoAdapter()
+    a._client = C()
+    with pytest.raises(KotakAPIError) as ei:
+        a.get_historical_data("NIFTY")
+    assert "Invalid neosymbol" in str(ei.value) and "Invalid neosymbol" in a.health_check()["last_error"]
+
+
+def test_validate_market_data_sanitized(monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, "KOTAK_CONSUMER_KEY", "SECRETKEY123")
+    a = KotakNeoAdapter()
+    a._client = _FakeClient()
+    out = a.validate_market_data()
+    assert out["nifty_history"] and out["nifty_neosymbol"] == "nse_cm|Nifty 50" and out["quote"]
+    assert "SECRETKEY123" not in str(out)
