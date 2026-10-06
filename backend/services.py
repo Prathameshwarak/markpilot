@@ -7,6 +7,7 @@ present fallback data as LIVE.
 """
 from __future__ import annotations
 import logging
+import threading
 from datetime import datetime, timezone
 
 from providers.factory import get_market_data_provider
@@ -14,6 +15,8 @@ from providers.mock import (
     MockMarketDataProvider, MockFundamentalDataProvider, MockNewsProvider, LexiconSentimentProvider,
 )
 from brokers.registry import get_kotak_adapter
+from config import settings
+import cache
 from data.universe import UNIVERSE, SECTORS
 from engine import technical, fundamental, sector as sector_engine, risk, scoring
 import market_status as mkt
@@ -104,29 +107,86 @@ def _build_one(symbol: str, provider, source: str, nifty_close: list[float]) -> 
 
 
 def _build_all(provider, source: str):
+    """Build every symbol. With a live provider, a single failing symbol does not abort
+    the build: it is rebuilt from mock data, clearly marked DEMO, and recorded in
+    `failed`. NIFTY (needed for regime/relative strength) must succeed."""
     nifty = provider.get_index("NIFTY")
     regime = scoring.market_regime(nifty["close"])
-    equities = {sym: _build_one(sym, provider, source, nifty["close"]) for sym in UNIVERSE}
-    return equities, regime, nifty
+    equities, failed = {}, {}
+    mock = mock_nifty = None
+    for sym in UNIVERSE:
+        try:
+            equities[sym] = _build_one(sym, provider, source, nifty["close"])
+        except Exception as e:
+            if source == "mock":
+                raise
+            failed[sym] = f"{type(e).__name__}: {e}"[:200]
+            logger.warning("Kotak data unavailable for %s: %s", sym, failed[sym])
+            if mock is None:
+                mock = MockMarketDataProvider()
+                mock_nifty = mock.get_index("NIFTY")["close"]
+            equities[sym] = _build_one(sym, mock, "mock", mock_nifty)
+    if source != "mock" and len(failed) == len(UNIVERSE):
+        raise RuntimeError(f"All symbols failed; first error: {next(iter(failed.values()))}")
+    return equities, regime, nifty, failed
 
 
 def _build_with_fallback():
+    """Returns (equities, regime, nifty, source, quality, last_error, failed_symbols)."""
     provider, source = get_market_data_provider()
+    last_error = None
     if source == "kotak":
+        adapter = get_kotak_adapter()
+        # A TOTP session is optional for market data; establish it when fully configured
+        # so health reflects it, but do not let its failure block data retrieval.
+        if adapter.configured and not adapter.health_check()["connected"]:
+            adapter.authenticate()
         try:
-            get_kotak_adapter().authenticate()
-            eq, regime, nifty = _build_all(provider, source)
-            logger.info("Research built from LIVE Kotak data.")
-            return eq, regime, nifty, "kotak"
+            eq, regime, nifty, failed = _build_all(provider, source)
+            quality = "PARTIAL" if failed else "LIVE"
+            if failed:
+                last_error = f"{len(failed)} symbol(s) unavailable from Kotak"
+            logger.info("Research built from Kotak data (%s).", quality)
+            return eq, regime, nifty, "kotak", quality, last_error, failed
         except Exception as e:
-            logger.warning("Kotak live build failed (%s); falling back to DEMO mock data.", type(e).__name__)
-    eq, regime, nifty = _build_all(MockMarketDataProvider(), "mock")
-    return eq, regime, nifty, "mock"
+            last_error = f"Kotak provider initialization failed: {type(e).__name__}: {e}"[:300]
+            logger.warning("%s; falling back to DEMO mock data.", last_error)
+    elif settings.MARKET_DATA_PROVIDER == "kotak":
+        last_error = "MARKET_DATA_PROVIDER=kotak but KOTAK_CONSUMER_KEY is not configured"
+        logger.warning("%s; using DEMO mock data.", last_error)
+    eq, regime, nifty, _ = _build_all(MockMarketDataProvider(), "mock")
+    return eq, regime, nifty, "mock", "DEMO", last_error, {}
 
 
-EQUITIES, _REGIME, _NIFTY, DATA_SOURCE = _build_with_fallback()
-DATA_QUALITY = "LIVE" if DATA_SOURCE == "kotak" else "DEMO"
-LAST_MARKET_DATA_TS = datetime.now(timezone.utc).isoformat()
+_rebuild_lock = threading.Lock()
+LAST_ERROR: str | None = None
+FAILED_SYMBOLS: dict = {}
+
+
+def rebuild() -> dict:
+    """(Re)build research data from the configured provider. Never raises; on Kotak
+    failure the DEMO fallback is kept and the sanitized reason is stored in LAST_ERROR."""
+    global EQUITIES, IDEAS, _REGIME, _NIFTY, DATA_SOURCE, DATA_QUALITY, LAST_MARKET_DATA_TS
+    global LAST_ERROR, FAILED_SYMBOLS
+    with _rebuild_lock:
+        try:
+            cache.clear()
+            eq, regime, nifty, source, quality, err, failed = _build_with_fallback()
+        except Exception as e:  # even the mock build failed — keep whatever we had
+            LAST_ERROR = f"Rebuild failed: {type(e).__name__}: {e}"[:300]
+            logger.error(LAST_ERROR)
+            return provider_status()
+        EQUITIES, _REGIME, _NIFTY = eq, regime, nifty
+        DATA_SOURCE, DATA_QUALITY, LAST_ERROR, FAILED_SYMBOLS = source, quality, err, failed
+        LAST_MARKET_DATA_TS = datetime.now(timezone.utc).isoformat()
+        IDEAS = {f"idea-{sym}": _to_idea(e) for sym, e in EQUITIES.items()}
+    return provider_status()
+
+
+EQUITIES: dict = {}
+IDEAS: dict = {}
+_REGIME: dict = {}
+_NIFTY: dict = {}
 
 
 def _to_idea(eq: dict) -> dict:
@@ -186,7 +246,6 @@ def _to_idea(eq: dict) -> dict:
     }
 
 
-IDEAS = {f"idea-{sym}": _to_idea(eq) for sym, eq in EQUITIES.items()}
 
 
 def list_equities() -> list[dict]:
@@ -228,4 +287,8 @@ def current_regime() -> dict:
 
 def provider_status() -> dict:
     return {"data_source": DATA_SOURCE, "data_quality": DATA_QUALITY,
-            "last_market_data_timestamp": LAST_MARKET_DATA_TS}
+            "last_market_data_timestamp": LAST_MARKET_DATA_TS,
+            "last_error": LAST_ERROR, "failed_symbols": sorted(FAILED_SYMBOLS)}
+
+
+rebuild()  # initial build at import (same behaviour as before, now refreshable)

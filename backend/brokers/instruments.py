@@ -33,7 +33,14 @@ _NSE_TOKENS = {
     "LT": "11483", "HINDUNILVR": "1394", "TATAMOTORS": "3456", "AXISBANK": "5900",
 }
 
-_INDEX_TOKENS = {"NIFTY": ("nse_cm", "26000"), "NIFTY 50": ("nse_cm", "26000")}
+# Kotak addresses indices by NAME (official SDK docs: WsToken("nse_cm", "Nifty 50")).
+# The first entry is preferred; later entries are fallbacks tried in order until one
+# returns data. The working identifier is remembered for the process.
+_INDEX_IDS = {
+    "NIFTY": [("nse_cm", "Nifty 50"), ("nse_cm", "26000")],
+    "NIFTY 50": [("nse_cm", "Nifty 50"), ("nse_cm", "26000")],
+}
+_INDEX_RESOLVED: dict[str, tuple[str, str]] = {}
 
 
 def get_instrument(symbol: str) -> Instrument | None:
@@ -53,7 +60,39 @@ def get_instrument(symbol: str) -> Instrument | None:
 
 
 def index_token(index: str = "NIFTY") -> tuple[str, str] | None:
-    return _INDEX_TOKENS.get(index.upper())
+    key = index.upper()
+    if key in _INDEX_RESOLVED:
+        return _INDEX_RESOLVED[key]
+    ids = _INDEX_IDS.get(key)
+    return ids[0] if ids else None
+
+
+def remember_index_neosymbol(index: str, neosym: str) -> None:
+    seg, _, tok = neosym.partition("|")
+    _INDEX_RESOLVED[index.upper()] = (seg, tok)
+
+
+def neosymbol_candidates(symbol: str) -> list[str]:
+    """All neosymbols to try for `symbol` (indices may have several; stocks have one)."""
+    key = symbol.upper()
+    if key in _INDEX_IDS:
+        first = index_token(key)
+        ids = [first] + [i for i in _INDEX_IDS[key] if i != first]
+        return [f"{s}|{t}" for s, t in ids]
+    ns = neosymbol(symbol)
+    return [ns] if ns else []
+
+
+def neosymbol(symbol: str) -> str | None:
+    """Kotak SDK `neosymbol` ("{exchange_segment}|{instrument_token}") for a stock in the
+    universe or a configured index (indices are NOT part of UNIVERSE)."""
+    idx = index_token(symbol)
+    if idx:
+        return f"{idx[0]}|{idx[1]}"
+    inst = get_instrument(symbol)
+    if inst and inst.broker_instrument_token:
+        return f"{inst.exchange}|{inst.broker_instrument_token}"
+    return None
 
 
 def all_instruments() -> list[Instrument]:
