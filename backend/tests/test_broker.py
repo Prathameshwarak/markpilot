@@ -155,3 +155,124 @@ def test_kotak_provider_insufficient_data(monkeypatch):
     p = KotakMarketDataProvider(a)
     with pytest.raises(RuntimeError):
         p.get_historical("RELIANCE")
+
+
+# ---------- live-data fix: index path, SDK args, error payloads, read-only ----------
+from datetime import date as _date
+
+
+class _RecordingClient(_FakeClient):
+    def __init__(self, *a, **k):
+        super().__init__()
+        self.hist_calls = []
+
+    def historical_data(self, neosymbol, interval, from_date, to_date):  # exact SDK 3.x signature
+        self.hist_calls.append(dict(neosymbol=neosymbol, interval=interval,
+                                    from_date=from_date, to_date=to_date))
+        return _FakeClient.historical_data(self)
+
+
+def test_neosymbol_index_and_stock():
+    assert instruments.neosymbol("NIFTY") == "nse_cm|26000"
+    assert instruments.neosymbol("RELIANCE") == "nse_cm|2885"
+    assert instruments.neosymbol("NOPE") is None
+
+
+def test_historical_data_uses_sdk_signature():
+    a = KotakNeoAdapter()
+    a._client = _RecordingClient()
+    a.get_historical_data("RELIANCE", interval="day", days=120)
+    call = a._client.hist_calls[0]
+    assert call["neosymbol"] == "nse_cm|2885" and call["interval"] == "D"
+    f, t = _date.fromisoformat(call["from_date"]), _date.fromisoformat(call["to_date"])
+    assert t == _date.today() and (t - f).days >= 120
+
+
+def test_nifty_uses_index_token_path():
+    import cache
+    cache.clear()
+    from providers.kotak_provider import KotakMarketDataProvider
+    a = KotakNeoAdapter()
+    a._client = _RecordingClient()
+    idx = KotakMarketDataProvider(a).get_index("NIFTY")
+    assert a._client.hist_calls[0]["neosymbol"] == "nse_cm|26000"
+    assert idx["source"] == "kotak" and len(idx["close"]) == 120
+
+
+@pytest.mark.parametrize("payload", [
+    {"error": [{"code": "401", "message": "Invalid consumer key"}]},
+    {"Error": "Unexpected response format", "Exception": "x", "StatusCode": 502},
+    {"stat": "Not_Ok", "emsg": "Session expired"},
+])
+def test_sdk_error_payloads_are_failures(payload):
+    from brokers.kotak_neo import KotakAPIError
+
+    class ErrClient(_FakeClient):
+        def quotes(self, **k): return payload
+        def historical_data(self, **k): return payload
+
+    a = KotakNeoAdapter()
+    a._client = ErrClient()
+    with pytest.raises(KotakAPIError):
+        a.get_quote("RELIANCE")
+    with pytest.raises(KotakAPIError):
+        a.get_historical_data("NIFTY")
+    assert a.health_check()["last_error"]
+
+
+def test_authenticate_rejects_error_payload(monkeypatch):
+    _configure(monkeypatch)
+    import neo_api_client
+
+    class BadLogin(_FakeClient):
+        def totp_login(self, **k):
+            return {"error": [{"code": "400", "message": "Invalid TOTP"}]}
+
+    monkeypatch.setattr(neo_api_client, "NeoAPI", BadLogin)
+    a = KotakNeoAdapter()
+    res = a.authenticate()
+    assert res["connected"] is False and res["status"] == "AUTH_FAILED"
+
+
+def test_authenticate_success(monkeypatch):
+    _configure(monkeypatch)
+    import neo_api_client
+    monkeypatch.setattr(neo_api_client, "NeoAPI", _FakeClient)
+    res = KotakNeoAdapter().authenticate()
+    assert res["connected"] is True and res["status"] == "CONNECTED"
+
+
+def test_market_data_without_totp_session(monkeypatch):
+    from config import settings
+    import neo_api_client
+    monkeypatch.setattr(settings, "KOTAK_CONSUMER_KEY", "ck")
+    monkeypatch.setattr(settings, "KOTAK_MPIN", "")  # no TOTP/MPIN session possible
+    monkeypatch.setattr(neo_api_client, "NeoAPI", _FakeClient)
+    a = KotakNeoAdapter()
+    assert a.get_quote("RELIANCE")["ltp"] == 2905.5
+
+
+def test_no_order_methods_on_adapter():
+    for m in ("place_order", "modify_order", "cancel_order"):
+        assert not hasattr(KotakNeoAdapter, m)
+        assert m not in READ_ONLY_METHODS
+
+
+def test_secrets_never_logged(monkeypatch, caplog):
+    _configure(monkeypatch)
+    from config import settings
+    import neo_api_client
+
+    class Leaky(_FakeClient):
+        def totp_validate(self, **k):
+            return {"error": [{"message": f"bad mpin {settings.KOTAK_MPIN} key {settings.KOTAK_CONSUMER_KEY}x"}]}
+
+    monkeypatch.setattr(neo_api_client, "NeoAPI", Leaky)
+    monkeypatch.setattr(settings, "KOTAK_MPIN", "987654")
+    monkeypatch.setattr(settings, "KOTAK_CONSUMER_KEY", "SECRETKEY123")
+    import logging
+    caplog.set_level(logging.DEBUG)
+    a = KotakNeoAdapter()
+    a.authenticate()
+    blob = caplog.text + str(a.health_check())
+    assert "987654" not in blob and "SECRETKEY123" not in blob

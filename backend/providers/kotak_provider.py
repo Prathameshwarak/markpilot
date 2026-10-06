@@ -55,11 +55,16 @@ class KotakMarketDataProvider(MarketDataProvider):
         return columnar
 
     def get_index(self, index: str = "NIFTY") -> dict:
-        tok = instruments.index_token(index)
-        if not tok:
-            raise RuntimeError("Unknown index")
-        exchange, token = tok
-        candles = self._adapter.get_historical_data(index, interval="day", days=120)
+        # Indices are resolved via instruments.index_token (not the stock UNIVERSE);
+        # the adapter builds the neosymbol, e.g. "nse_cm|26000".
+        if not instruments.index_token(index):
+            raise RuntimeError(f"Unknown index: {index}")
+        ck = f"kindex:{index.upper()}"
+        candles = cache.get(ck)
+        if not candles:
+            candles = self._adapter.get_historical_data(index, interval="day", days=120)
+            if candles:
+                cache.set(ck, candles, settings.HISTORICAL_CACHE_TTL)
         close = [c["close"] for c in candles] if candles else []
         if len(close) < 21:
             raise RuntimeError("INSUFFICIENT_DATA")

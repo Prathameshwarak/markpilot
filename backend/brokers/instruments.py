@@ -56,5 +56,17 @@ def index_token(index: str = "NIFTY") -> tuple[str, str] | None:
     return _INDEX_TOKENS.get(index.upper())
 
 
+def neosymbol(symbol: str) -> str | None:
+    """Kotak SDK `neosymbol` ("{exchange_segment}|{instrument_token}") for a stock in the
+    universe or a configured index (indices are NOT part of UNIVERSE)."""
+    idx = index_token(symbol)
+    if idx:
+        return f"{idx[0]}|{idx[1]}"
+    inst = get_instrument(symbol)
+    if inst and inst.broker_instrument_token:
+        return f"{inst.exchange}|{inst.broker_instrument_token}"
+    return None
+
+
 def all_instruments() -> list[Instrument]:
     return [get_instrument(s) for s in UNIVERSE]

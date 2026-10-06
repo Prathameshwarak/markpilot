@@ -65,6 +65,10 @@ class Settings:
     def kotak_configured(self) -> bool:
         return all(getattr(self, k) for k in self.kotak_required_keys())
 
+    def kotak_data_configured(self) -> bool:
+        """Read-only market data needs only the consumer key in kotakneoapi 3.x."""
+        return bool(self.KOTAK_CONSUMER_KEY)
+
     def telegram_configured(self) -> bool:
         return bool(self.TELEGRAM_BOT_TOKEN)
 
