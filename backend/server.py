@@ -1,5 +1,6 @@
 """MarketPilot backend entrypoint."""
 from config import settings  # loads .env first
+from scheduler import run_scheduler
 
 import asyncio
 import logging
