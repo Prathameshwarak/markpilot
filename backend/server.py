@@ -1,6 +1,7 @@
 """MarketPilot backend entrypoint."""
 from config import settings  # loads .env first
 
+import asyncio
 import logging
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
